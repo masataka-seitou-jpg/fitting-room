@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0F1B36">
+<title>Particle Fitting Room · Hand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+/* Layout: one full-bleed 3D stage (navy "shop at night") + a hang-tag bottom sheet. Single dark world, Ivy navy × shop orange. */
+:root{
+  --navy:#0F1B36; --navy-2:#172850; --orange:#F26A21; --paper:#F4EFE4; --paper-ink:#1B2440;
+  --muted:#8E9AB6; --line:rgba(244,239,228,.14);
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"DM Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--navy);color:var(--paper);overflow:hidden}
+body{font-family:var(--f-body);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+#app{position:relative;height:100%;overflow:hidden;
+  background:radial-gradient(120% 70% at 50% 30%,var(--navy-2) 0%,var(--navy) 62%)}
+#c{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+
+.top{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-top:calc(12px + env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+.top>*{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:11px;letter-spacing:.14em}
+.brand .sq{width:18px;height:18px;background:var(--orange);display:grid;place-items:center;color:var(--navy);font-weight:500;font-size:10px;letter-spacing:0}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:rgba(15,27,54,.6);backdrop-filter:blur(8px)}
+.seg button{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;padding:6px 12px;border-radius:999px;color:var(--muted)}
+.seg button[aria-selected="true"]{background:var(--paper);color:var(--paper-ink)}
+
+#labels{position:absolute;inset:0;pointer-events:none;z-index:3}
+.olabel{position:absolute;left:0;top:0;pointer-events:auto;white-space:nowrap;font-family:var(--f-display);font-weight:700;
+  font-size:15px;letter-spacing:.06em;padding:4px 9px;border:1px solid rgba(242,106,33,.7);color:var(--paper);background:rgba(15,27,54,.55);
+  border-radius:2px;will-change:transform,opacity}
+.olabel small{font-family:var(--f-mono);font-size:9px;color:var(--orange);margin-right:6px;letter-spacing:.08em}
+
+.hint{position:absolute;z-index:4;left:50%;top:38%;transform:translate(-50%,-50%);pointer-events:none;
+  display:grid;grid-template-columns:auto auto;gap:8px 14px;font-size:12px;padding:14px 16px;border:1px solid var(--line);
+  background:rgba(15,27,54,.72);backdrop-filter:blur(6px);transition:opacity .6s;width:max-content;max-width:calc(100% - 32px)}
+.hint b{font-family:var(--f-mono);font-weight:500;color:var(--orange);font-size:11px;letter-spacing:.08em}
+.hint.gone{opacity:0}
+
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:10px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(to top,var(--navy) 70%,rgba(15,27,54,0));display:flex;flex-direction:column;gap:10px}
+.sheet-inner{max-width:640px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:10px;min-width:0}
+.title-row{display:flex;align-items:center;gap:8px;touch-action:pan-y;user-select:none}
+.title-row .mid{flex:1;min-width:0}
+.arrow{width:40px;height:40px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;font-size:18px;flex:none}
+.meta{display:flex;align-items:center;gap:10px;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;color:var(--muted)}
+.dots{display:flex;gap:4px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--line);display:block}
+.dots i.on{background:var(--paper)}
+.dots i.saved{box-shadow:0 0 0 1.5px var(--orange)}
+h1{margin:2px 0 0;font-family:var(--f-display);font-weight:900;font-size:clamp(38px,11vw,56px);line-height:.92;letter-spacing:.01em;text-wrap:balance}
+h1 .jp{display:block;font-family:var(--f-body);font-weight:700;font-size:12px;letter-spacing:.2em;color:var(--orange);margin-top:6px}
+.note{margin:0;font-size:12.5px;line-height:1.7;color:#C9D0E0;max-width:60ch}
+
+.tags{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 6px;scroll-snap-type:x mandatory;scrollbar-width:none;margin-inline:-2px}
+.tags::-webkit-scrollbar{display:none}
+.tag{position:relative;flex:none;width:138px;scroll-snap-align:start;text-align:left;background:var(--paper);color:var(--paper-ink);
+  padding:10px 10px 9px 22px;clip-path:polygon(12px 0,100% 0,100% 100%,12px 100%,0 50%);transition:transform .2s,background .2s}
+.tag::before{content:"";position:absolute;left:9px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--navy)}
+.tag .cat{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.14em;color:#6A7390;display:flex;justify-content:space-between}
+.tag .nm{display:block;font-weight:700;font-size:12px;line-height:1.35;margin-top:3px;min-height:32px}
+.tag .fab{display:block;font-size:10px;color:#4D5677;margin-top:2px}
+.tag .col{display:flex;align-items:center;gap:5px;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.08em;margin-top:6px}
+.tag .col i{width:10px;height:10px;display:block;border:1px solid rgba(27,36,64,.25)}
+.tag[aria-pressed="true"]{background:var(--orange);color:#fff;transform:translateY(-3px)}
+.tag[aria-pressed="true"] .cat,.tag[aria-pressed="true"] .fab{color:rgba(255,255,255,.85)}
+
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.actions button{border:1px solid var(--line);padding:10px 6px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.actions button.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+#save[aria-pressed="true"]{color:var(--orange);border-color:var(--orange)}
+.toast{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:7;background:var(--paper);color:var(--paper-ink);
+  font-size:12px;font-weight:700;padding:7px 12px;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.on{opacity:1}
+.cam{position:absolute;z-index:5;right:max(16px,env(safe-area-inset-right,0px));top:calc(56px + env(safe-area-inset-top,0px));
+  width:92px;aspect-ratio:3/4;border:1px solid var(--orange);overflow:hidden;background:#000}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam .gest{position:absolute;left:0;right:0;bottom:0;font-family:var(--f-mono);font-size:8.5px;letter-spacing:.08em;background:rgba(15,27,54,.85);padding:3px 4px;text-align:center;white-space:nowrap;overflow:hidden}
+#cam[aria-pressed="true"]{background:var(--paper);border-color:var(--paper);color:var(--paper-ink)}
+.noscript{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center}
+@media (min-width:900px){ .sheet{left:auto;right:24px;bottom:24px;width:420px;background:rgba(15,27,54,.82);border:1px solid var(--line);backdrop-filter:blur(10px);padding-block:16px} }
+@media (prefers-reduced-motion:reduce){ .tag,.hint{transition:none} }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c" aria-label="パーティクルで描かれたコーディネート。ドラッグで回転、ピンチでズーム、長押しで分解。"></canvas>
+  <header class="top">
+    <div class="brand"><span class="sq">T</span><span>TOKYO SELECT LAB</span></div>
+    <div class="seg" role="tablist" aria-label="表示モード">
+      <button role="tab" data-mode="look" aria-selected="true">LOOK</button>
+      <button role="tab" data-mode="orbit" aria-selected="false">ORBIT</button>
+    </div>
+  </header>
+  <div id="labels" aria-hidden="false"></div>
+  <div class="hint" id="hint">
+    <b>DRAG</b><span>回転</span>
+    <b>PINCH</b><span>ズーム</span>
+    <b>HOLD</b><span>長押しでバラす</span>
+    <b>SWIPE</b><span>下の帯を左右で着替え</span>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <div class="cam" id="camBox" hidden><video id="video" playsinline muted autoplay></video><canvas id="lmc"></canvas><span class="gest" id="gest">LOADING</span></div>
+
+  <section class="sheet" id="sheet">
+    <div class="sheet-inner">
+      <div class="title-row" id="swipeZone">
+        <button class="arrow" id="prev" aria-label="前のルック">‹</button>
+        <div class="mid">
+          <div class="meta"><span id="count">01 / 06</span><span>26AW</span><span class="dots" id="dots"></span></div>
+          <h1><span id="lookEn">IVY TRAD</span><span class="jp" id="lookJp">アイビー・トラッド</span></h1>
+        </div>
+        <button class="arrow" id="next" aria-label="次のルック">›</button>
+      </div>
+      <p class="note" id="note"></p>
+      <div class="tags" id="tags" aria-label="アイテム（タップでハイライト）"></div>
+      <div class="actions">
+        <button id="save" aria-pressed="false"><span id="saveIco">♡</span> 保存</button>
+        <button id="shuffle">今日の一着</button>
+        <button id="cam" class="primary" aria-pressed="false">✋ 手で操作</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+if(!window.THREE){document.getElementById('app').insertAdjacentHTML('beforeend','<div class="noscript">3D表示を読み込めませんでした。通信環境を確認して再読み込みしてください。</div>');return;}
+
+/* ---------- geometry samplers ---------- */
+const R=Math.random, TAU=Math.PI*2;
+const lerp3=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+function gauss3(){let x,y,z,l;do{x=R()*2-1;y=R()*2-1;z=R()*2-1;l=x*x+y*y+z*z}while(l>1||l<1e-4);l=Math.sqrt(l);return[x/l,y/l,z/l]}
+const seg=(g,col,a,b,r1,r2,sx=1,sz=1,w=1)=>({k:'seg',g,col,a,b,r1,r2,sx,sz,w});
+const ell=(g,col,c,rx,ry,rz,ymin=-1,w=1)=>({k:'ell',g,col,c,rx,ry,rz,ymin,w});
+const box=(g,col,c,sx,sy,sz,w=1)=>({k:'box',g,col,c,sx,sy,sz,w});
+function area(p){
+  if(p.k==='seg'){const d=Math.hypot(p.b[0]-p.a[0],p.b[1]-p.a[1],p.b[2]-p.a[2]);return Math.PI*(p.r1+p.r2)*d*(p.sx+p.sz)/2*p.w}
+  if(p.k==='ell'){const s=(p.rx*p.ry+p.ry*p.rz+p.rx*p.rz)/3;return 4*Math.PI*s*(1-p.ymin)/2*p.w}
+  return 2*(p.sx*p.sy+p.sy*p.sz+p.sx*p.sz)*p.w;
+}
+function samplePt(p){
+  if(p.k==='seg'){
+    const t=R(),c=lerp3(p.a,p.b,t),r=p.r1+(p.r2-p.r1)*t;
+    let d=[p.b[0]-p.a[0],p.b[1]-p.a[1],p.b[2]-p.a[2]];const dl=Math.hypot(...d);d=d.map(v=>v/dl);
+    let u=[d[1]*1-d[2]*0,d[2]*0-d[0]*1,0]; // cross(d,Z)
+    let ul=Math.hypot(...u); if(ul<1e-3){u=[0,d[2],-d[1]];ul=Math.hypot(...u)} u=u.map(v=>v/ul);
+    const v=[d[1]*u[2]-d[2]*u[1],d[2]*u[0]-d[0]*u[2],d[0]*u[1]-d[1]*u[0]];
+    const an=R()*TAU,ca=Math.cos(an)*r*p.sx,sa=Math.sin(an)*r*p.sz;
+    return[c[0]+u[0]*ca+v[0]*sa,c[1]+u[1]*ca+v[1]*sa,c[2]+u[2]*ca+v[2]*sa];
+  }
+  if(p.k==='ell'){let v;do{v=gauss3()}while(v[1]<p.ymin);return[p.c[0]+v[0]*p.rx,p.c[1]+v[1]*p.ry,p.c[2]+v[2]*p.rz]}
+  const ax=p.sx*p.sy,ay=p.sy*p.sz,az=p.sx*p.sz,f=R()*(ax+ay+az),s=R()<.5?-.5:.5;
+  let x=(R()-.5)*p.sx,y=(R()-.5)*p.sy,z=(R()-.5)*p.sz;
+  if(f<ax) z=s*p.sz; else if(f<ax+ay) x=s*p.sx; else y=s*p.sy;
+  return[p.c[0]+x,p.c[1]+y,p.c[2]+z];
+}
+
+/* ---------- body + garment builders ---------- */
+const SKIN='#7C89A8';
+const sk=s=>({S:[.2*s,1.4,0],E:[.25*s,1.12,.01],W:[.27*s,.87,.04],H:[.095*s,.9,0],K:[.1*s,.5,.01],A:[.105*s,.1,0]});
+function mannequin(opt={}){
+  const P=[ell(-1,SKIN,[0,1.615,.01],.088,.112,.098,-1,.8), seg(-1,SKIN,[0,1.46,0],[0,1.53,0],.05,.048,1,1,.5)];
+  for(const s of[-1,1]){const k=sk(s);P.push(ell(-1,SKIN,[.275*s,.79,.05],.038,.068,.03,-1,.5));
+    if(opt.bareLegs)P.push(seg(-1,SKIN,lerp3(k.H,k.K,.8),k.A,.07,.042,1,1,.5));
+    if(opt.bareArms)P.push(seg(-1,SKIN,lerp3(k.S,k.E,.55),k.E,.05,.045,1,1,.5),seg(-1,SKIN,k.E,k.W,.045,.038,1,1,.5));}
+  return P;
+}
+function torso(g,col,{yb=.86,pad=0,sz=.62,top=1.43}={}){
+  return[seg(g,col,[0,yb,0],[0,top,0],.165+pad,.19+pad,1,sz+pad),
+    ell(g,col,[0,top-.005,0],.2+pad,.055,.12+pad,0),
+    ell(g,col,[-.2,1.4,0],.075+pad,.06,.075+pad,-.2),ell(g,col,[.2,1.4,0],.075+pad,.06,.075+pad,-.2)];
+}
+function sleeves(g,col,{pad=0,len=1}={}){
+  const P=[];for(const s of[-1,1]){const k=sk(s);
+    if(len>=1)P.push(seg(g,col,k.S,k.E,.066+pad,.056+pad),seg(g,col,k.E,k.W,.056+pad,.048+pad));
+    else P.push(seg(g,col,k.S,lerp3(k.S,k.E,len),.068+pad,.062+pad));}
+  return P;
+}
+function pants(g,col,{pad=0,flare=0,shorts=false}={}){
+  const P=[seg(g,col,[0,.82,0],[0,1.0,0],.17+pad,.165+pad,1,.66+pad)];
+  for(const s of[-1,1]){const k=sk(s);
+    if(shorts)P.push(seg(g,col,k.H,lerp3(k.H,k.K,.78),.097+pad,.09+pad));
+    else P.push(seg(g,col,k.H,k.K,.088+pad,.072+pad),seg(g,col,k.K,k.A,.072+pad,.06+pad+flare));}
+  return P;
+}
+function shoes(g,col,{pad=0,h=0,boot=0}={}){
+  const P=[];for(const s of[-1,1]){const x=.105*s;
+    P.push(ell(g,col,[x,.045,.05],.052+pad,.045+h,.125+pad,-.35));
+    if(boot)P.push(seg(g,col,[x,.06,0],[x,.06+boot,0],.07+pad,.066+pad));}
+  return P;
+}
+const hood=(g,col,pad=0)=>[ell(g,col,[0,1.52,-.085],.15+pad,.11,.1+pad)];
+const vee=(g,col,c=[0,1.32,.118],rx=.06,ry=.1)=>[ell(g,col,c,rx,ry,.018,-1,2.2)];
+const pocket=(g,col,c,s=[.07,.08,.02])=>[box(g,col,c,...s)];
+
+/* palette helpers */
+const O='#F26A21',CREAM='#F4EFE4';
+const stripesX=(a,b,f=46)=>p=>(Math.floor(p[0]*f+200)%2?a:b);
+const diag=(a,b,f=60)=>p=>(Math.floor((p[1]+p[0]*.9)*f+200)%2?a:b);
+
+/* ---------- looks ---------- */
+const LOOKS=[
+ {id:'ivy',en:'IVY TRAD',jp:'アイビー・トラッド',
+  note:'紺ブレにオックスフォードのボタンダウン、レジメンタルタイ。足元はローファーで、キャンパスの延長にある大人の正統派。',
+  items:[
+   {cat:'JACKET',nm:'3B段返り ネイビーブレザー',fab:'ウール ホップサック',cn:'NAVY',hex:'#4469B8'},
+   {cat:'SHIRT',nm:'オックスフォード ボタンダウン',fab:'コットン100%',cn:'WHITE',hex:'#F1EEE6'},
+   {cat:'TIE',nm:'レジメンタル ストライプタイ',fab:'シルク',cn:'ORANGE×NAVY',hex:O},
+   {cat:'PANTS',nm:'ツープリーツ チノトラウザー',fab:'コットンツイル',cn:'BEIGE',hex:'#D6B47E'},
+   {cat:'SHOES',nm:'ペニーローファー',fab:'ガラスレザー',cn:'BROWN',hex:'#A45B33'}],
+  build:i=>[...mannequin(),...torso(0,i[0].hex,{yb:.76,pad:.012}),...sleeves(0,i[0].hex,{pad:.008}),
+   ...vee(1,i[1].hex,[0,1.33,.122],.065,.11),seg(1,i[1].hex,[0,1.44,0],[0,1.5,0],.062,.06),
+   box(2,diag(O,'#2C4A8E'),[0,1.29,.135],.036,.2,.008,3.5),
+   ...pocket(0,i[0].hex,[-.11,.86,.112],[.08,.012,.02]),...pocket(0,i[0].hex,[.11,.86,.112],[.08,.012,.02]),
+   ...pants(3,i[3].hex,{pad:.005}),...shoes(4,i[4].hex)]},
+ {id:'work',en:'AMERICAN WORK',jp:'アメリカン・ワーク',
+  note:'ダックのカバーオールに生デニム。ワークブーツとワッチキャップで、着込んで育てる王道ワーク。',
+  items:[
+   {cat:'COVERALL',nm:'ダック カバーオール',fab:'コットンダック 12oz',cn:'BROWN DUCK',hex:'#C77B36'},
+   {cat:'T-SHIRT',nm:'ヘビーウェイト ポケットT',fab:'天竺 7.5oz',cn:'WHITE',hex:'#EDEBE4'},
+   {cat:'DENIM',nm:'5ポケット ストレートデニム',fab:'13.5oz セルビッジ',cn:'INDIGO',hex:'#3E5EA6'},
+   {cat:'BOOTS',nm:'モックトゥ ワークブーツ',fab:'オイルドレザー',cn:'RUST',hex:'#A9592F'},
+   {cat:'CAP',nm:'ワッチキャップ',fab:'ウール×アクリル',cn:'HEATHER',hex:'#A9AFBA'}],
+  build:i=>[...mannequin(),...torso(0,i[0].hex,{yb:.72,pad:.03,sz:.66}),...sleeves(0,i[0].hex,{pad:.02}),
+   ...pocket(0,i[0].hex,[-.1,1.24,.15],[.09,.09,.015]),...pocket(0,i[0].hex,[.1,.9,.15],[.1,.11,.015]),...pocket(0,i[0].hex,[-.1,.9,.15],[.1,.11,.015]),
+   ...vee(1,i[1].hex,[0,1.33,.15],.07,.12),
+   ...pants(2,['#3E5EA6','#4C6DB5','#2F4C8E']),...shoes(3,i[3].hex,{pad:.012,h:.008,boot:.17}),
+   ell(4,i[4].hex,[0,1.67,.005],.098,.085,.104,-.25,1.3)]},
+ {id:'outdoor',en:'CITY OUTDOOR',jp:'シティ・アウトドア',
+  note:'マウンテンパーカーを街で着る。ワイドパンツとトレイルシューズで、週末の移動も軽快に。',
+  items:[
+   {cat:'SHELL',nm:'マウンテンパーカー',fab:'60/40クロス',cn:'ORANGE',hex:O},
+   {cat:'FLEECE',nm:'クルーネック フリース',fab:'リサイクルポリエステル',cn:'CREAM',hex:'#E8E0CC'},
+   {cat:'PANTS',nm:'ワイドイージーパンツ',fab:'ナイロンタフタ',cn:'CHARCOAL',hex:'#717888'},
+   {cat:'SHOES',nm:'トレイルランナー',fab:'メッシュ×合成皮革',cn:'GREY',hex:'#B9BEC7'}],
+  build:i=>[...mannequin(),...torso(0,i[0].hex,{yb:.68,pad:.035,sz:.68}),...sleeves(0,i[0].hex,{pad:.026}),...hood(0,i[0].hex,.01),
+   ...pocket(0,i[0].hex,[-.11,.97,.16],[.11,.13,.02]),...pocket(0,i[0].hex,[.11,.97,.16],[.11,.13,.02]),
+   ...vee(1,i[1].hex,[0,1.36,.155],.075,.09),
+   ...pants(2,i[2].hex,{pad:.03,flare:.012}),...shoes(3,p=>p[1]<.02?O:i[3].hex,{pad:.008,h:.006})]},
+ {id:'street',en:'TOKYO STREET',jp:'トウキョウ・ストリート',
+  note:'ビッグシルエットのスウェットパーカーにカーゴパンツ。キャップとボリュームスニーカーで、裏原から続くバランス感。',
+  items:[
+   {cat:'HOODIE',nm:'ビッグシルエット スウェットパーカー',fab:'裏毛 12oz',cn:'HEATHER GREY',hex:'#B8BCC6'},
+   {cat:'PANTS',nm:'6ポケット カーゴパンツ',fab:'コットンリップストップ',cn:'OLIVE',hex:'#858B5B'},
+   {cat:'SNEAKERS',nm:'ボリュームソール スニーカー',fab:'スエード×メッシュ',cn:'WHITE',hex:'#F0EEEA'},
+   {cat:'CAP',nm:'6パネル キャップ',fab:'コットンツイル',cn:'ORANGE',hex:O}],
+  build:i=>[...mannequin(),...torso(0,i[0].hex,{yb:.74,pad:.05,sz:.7}),...sleeves(0,i[0].hex,{pad:.035}),...hood(0,i[0].hex,.02),
+   box(0,i[0].hex,[0,.95,.175],.2,.12,.015,1.2),
+   ...pants(1,i[1].hex,{pad:.025,flare:-.01}),...pocket(1,i[1].hex,[-.2,.62,.01],[.03,.12,.11]),...pocket(1,i[1].hex,[.2,.62,.01],[.03,.12,.11]),
+   ...shoes(2,p=>p[1]<.01?'#D9D5CC':i[2].hex,{pad:.022,h:.02}),
+   ell(3,i[3].hex,[0,1.68,0],.1,.07,.106,0,1.3),box(3,i[3].hex,[0,1.675,.15],.17,.01,.1,1.3)]},
+ {id:'military',en:'MILITARY',jp:'ミリタリー',
+  note:'M-65をベースに、ベイカーパンツはあえて生成りで軽く。無骨すぎない大人のミリタリー。',
+  items:[
+   {cat:'JACKET',nm:'M-65 フィールドジャケット',fab:'コットンナイロン サテン',cn:'OLIVE DRAB',hex:'#878E55'},
+   {cat:'T-SHIRT',nm:'クルーネックTシャツ',fab:'コットン天竺',cn:'WHITE',hex:'#ECEAE3'},
+   {cat:'PANTS',nm:'ベイカーパンツ',fab:'バックサテン',cn:'ECRU',hex:'#DCD2B8'},
+   {cat:'SHOES',nm:'サービスシューズ',fab:'スムースレザー',cn:'DARK BROWN',hex:'#7E5741'}],
+  build:i=>[...mannequin(),...torso(0,i[0].hex,{yb:.7,pad:.03,sz:.66}),...sleeves(0,i[0].hex,{pad:.02}),
+   seg(0,i[0].hex,[0,1.44,-.02],[0,1.53,-.03],.09,.085,1.1,.9),
+   ...[[-.1,1.2],[.1,1.2],[-.1,.88],[.1,.88]].map(([x,y])=>box(0,'#6F7646',[x,y,.152],.1,.11,.02)),
+   ...vee(1,i[1].hex,[0,1.36,.15],.065,.07),
+   ...pants(2,i[2].hex,{pad:.012}),...shoes(3,i[3].hex,{pad:.005})]},
+ {id:'resort',en:'RESORT',jp:'リゾート',
+  note:'キャンディストライプのオープンカラーシャツにショーツ。サングラスとサンダルで、休日はとことん軽く。',
+  items:[
+   {cat:'SHIRT',nm:'キャンディストライプ オープンカラーシャツ',fab:'コットンブロード',cn:'ORANGE STRIPE',hex:O},
+   {cat:'SHORTS',nm:'イージーショーツ',fab:'コットンリネン',cn:'KHAKI',hex:'#CDB98F'},
+   {cat:'SANDALS',nm:'レザーサンダル',fab:'ヌバック',cn:'TAN',hex:'#BE8A56'},
+   {cat:'EYEWEAR',nm:'ウェリントン サングラス',fab:'アセテート',cn:'TORTOISE',hex:'#9A6332'}],
+  build:i=>[...mannequin({bareLegs:true,bareArms:true}),...torso(0,stripesX(O,CREAM),{yb:.84,pad:.022,sz:.64}),
+   ...sleeves(0,stripesX(O,CREAM,60),{pad:.012,len:.55}),
+   ...pants(1,i[1].hex,{pad:.02,shorts:true}),
+   ...[-1,1].flatMap(s=>[box(2,i[2].hex,[.105*s,.012,.05],.1,.018,.25,1.3),box(2,i[2].hex,[.105*s,.04,.07],.1,.04,.03,1.3)]),
+   box(3,i[3].hex,[-.042,1.64,.098],.065,.034,.012,4.5),box(3,i[3].hex,[.042,1.64,.098],.065,.034,.012,4.5),box(3,i[3].hex,[0,1.645,.1],.03,.008,.01,4)]},
+];
+LOOKS.forEach(l=>l.items.forEach((it,k)=>it.g=k));
+
+/* ---------- particles ---------- */
+const N = Math.min(innerWidth,innerHeight)<600 ? 7200 : 9500;
+const hexRGB=h=>{const n=parseInt(h.slice(1),16);return[(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]};
+function pickCol(col,p){const c=typeof col==='function'?col(p):Array.isArray(col)?col[(R()*col.length)|0]:col;return hexRGB(c)}
+function sampleLook(look){
+  const parts=look.build(look.items),areas=parts.map(area),tot=areas.reduce((a,b)=>a+b,0);
+  let pts=[];
+  parts.forEach((p,j)=>{const n=Math.round(N*areas[j]/tot);for(let q=0;q<n;q++){const v=samplePt(p);pts.push({p:[v[0]+(R()-.5)*.006,v[1]+(R()-.5)*.006,v[2]+(R()-.5)*.006],g:p.g,c:pickCol(p.col,v)})}});
+  while(pts.length<N)pts.push(pts[(R()*pts.length)|0]);
+  pts.length=N;
+  pts.sort((a,b)=>(a.p[1]+R()*.03)-(b.p[1]+R()*.03));
+  const pos=new Float32Array(N*3),col=new Float32Array(N*3),g=new Int8Array(N);
+  pts.forEach((o,k)=>{pos.set(o.p,k*3);col.set(o.c,k*3);g[k]=o.g});
+  return{pos,col,g};
+}
+const cache={};const getLook=i=>cache[i]||(cache[i]=sampleLook(LOOKS[i]));
+
+/* ---------- three setup ---------- */
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:false,alpha:true});
+const PR=Math.min(devicePixelRatio||1,2);renderer.setPixelRatio(PR);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(35,1,.1,50);
+const group=new THREE.Group();scene.add(group);
+
+const geo=new THREE.BufferGeometry();
+const cur=new Float32Array(N*3),curC=new Float32Array(N*3),aSize=new Float32Array(N),aAlpha=new Float32Array(N);
+const dir=new Float32Array(N*3),kSp=new Float32Array(N),baseSize=new Float32Array(N);
+for(let i=0;i<N;i++){const d=gauss3(),m=.5+R()*1.1;dir.set([d[0]*m,d[1]*m*.8+.15,d[2]*m],i*3);kSp[i]=.05+R()*.09;baseSize[i]=.75+R()*.9;
+  cur.set([(R()-.5)*4,R()*3-.5,(R()-.5)*4],i*3);curC.set([.95,.42,.13],i*3);aAlpha[i]=0;}
+geo.setAttribute('position',new THREE.BufferAttribute(cur,3).setUsage(THREE.DynamicDrawUsage));
+geo.setAttribute('aColor',new THREE.BufferAttribute(curC,3).setUsage(THREE.DynamicDrawUsage));
+geo.setAttribute('aSize',new THREE.BufferAttribute(aSize,1).setUsage(THREE.DynamicDrawUsage));
+geo.setAttribute('aAlpha',new THREE.BufferAttribute(aAlpha,1).setUsage(THREE.DynamicDrawUsage));
+const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,
+  uniforms:{uPx:{value:PR*5.2}},
+  vertexShader:`attribute vec3 aColor;attribute float aSize;attribute float aAlpha;varying vec3 vC;varying float vA;uniform float uPx;
+   void main(){vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;gl_PointSize=aSize*uPx*(3.0/-mv.z);vC=aColor;vA=aAlpha;}`,
+  fragmentShader:`varying vec3 vC;varying float vA;void main(){float d=length(gl_PointCoord-.5);float a=smoothstep(.5,.12,d)*vA;if(a<.01)discard;gl_FragColor=vec4(vC*(1.05-d*.4),a);}`});
+const points=new THREE.Points(geo,mat);points.frustumCulled=false;group.add(points);
+
+/* floor ring (shop turntable) */
+const ringG=new THREE.BufferGeometry(),RN=260,rp=new Float32Array(RN*3);
+for(let i=0;i<RN;i++){const a=i/RN*TAU;rp.set([Math.cos(a)*.42,0,Math.sin(a)*.42],i*3)}
+ringG.setAttribute('position',new THREE.BufferAttribute(rp,3));
+const ring=new THREE.Points(ringG,new THREE.PointsMaterial({color:0xF26A21,size:2.2*PR,sizeAttenuation:false,transparent:true,opacity:.55}));
+group.add(ring);
+
+/* orbit layout (homage to the sphere) */
+const CEN=[0,.98,0];
+const oType=new Uint8Array(N),oA=new Float32Array(N),oJ=new Float32Array(N*3),oCol=new Float32Array(N*3);
+const RINGS=[{r:.5,rx:1.25,rz:.2,sp:.35},{r:.62,rx:-.4,rz:.95,sp:-.25},{r:.36,rx:.3,rz:-.6,sp:.5}];
+RINGS.forEach(rg=>{rg.m=new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rg.rx,0,rg.rz))});
+for(let i=0;i<N;i++){
+  const f=R();oType[i]=f<.38?0:f<.62?1:f<.86?2:3;oA[i]=R()*TAU;
+  if(oType[i]===0){const d=gauss3(),m=.08+Math.pow(R(),.6)*.2;oJ.set([d[0]*m,d[1]*m,d[2]*m],i*3);
+    const t=m/.28;oCol.set([1,.42+.55*(1-t),.13+.8*(1-t)],i*3);}
+  else{oJ.set([(R()-.5)*.03,(R()-.5)*.025,(R()-.5)*.03],i*3);const c=R()<.7?hexRGB(O):hexRGB(CREAM);oCol.set(c,i*3);}
+}
+const LABEL_RING=RINGS[0];
+const labelsEl=document.getElementById('labels');
+const labelEls=LOOKS.map((l,i)=>{const b=document.createElement('button');b.className='olabel';b.innerHTML=`<small>${String(i+1).padStart(2,'0')}</small>${l.en}`;
+  b.setAttribute('aria-label',`${l.jp}を着せる`);b.addEventListener('click',()=>{setLook(i);setMode('look')});labelsEl.appendChild(b);return b});
+
+/* ---------- state ---------- */
+let lookIdx=0,mode='look',sel=-1,target=getLook(0);
+let rotY=.5,rotX=0,vY=0,zoom=1,hold=0,burst=1.0,idle=0,time=0;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let saved=new Set();try{saved=new Set(JSON.parse(localStorage.getItem('pfr-saved')||'[]'))}catch(e){}
+
+/* ---------- UI ---------- */
+const $=id=>document.getElementById(id);
+const dotsEl=$('dots');LOOKS.forEach(()=>dotsEl.appendChild(document.createElement('i')));
+function renderUI(){
+  const L=LOOKS[lookIdx];
+  $('count').textContent=`${String(lookIdx+1).padStart(2,'0')} / ${String(LOOKS.length).padStart(2,'0')}`;
+  $('lookEn').textContent=L.en;$('lookJp').textContent=L.jp;$('note').textContent=L.note;
+  [...dotsEl.children].forEach((d,i)=>{d.classList.toggle('on',i===lookIdx);d.classList.toggle('saved',saved.has(LOOKS[i].id))});
+  const s=saved.has(L.id);$('save').setAttribute('aria-pressed',s);$('saveIco').textContent=s?'♥':'♡';
+  const tg=$('tags');tg.innerHTML='';
+  L.items.forEach(it=>{const b=document.createElement('button');b.className='tag';b.setAttribute('aria-pressed',sel===it.g);
+    b.innerHTML=`<span class="cat"><span>${it.cat}</span><span>${String(it.g+1).padStart(2,'0')}</span></span><span class="nm"></span><span class="fab"></span><span class="col"><i style="background:${it.hex}"></i>${it.cn}</span>`;
+    b.querySelector('.nm').textContent=it.nm;b.querySelector('.fab').textContent=it.fab;
+    b.addEventListener('click',()=>{sel=sel===it.g?-1:it.g;renderUI();if(mode!=='look')setMode('look')});tg.appendChild(b)});
+}
+function setLook(i){lookIdx=(i+LOOKS.length)%LOOKS.length;target=getLook(lookIdx);sel=-1;burst=Math.max(burst,.55);renderUI();
+  setTimeout(()=>getLook((lookIdx+1)%LOOKS.length),300);}
+function setMode(m){mode=m;document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-selected',b.dataset.mode===m));
+  labelsEl.style.display=m==='orbit'?'':'none';burst=Math.max(burst,.35);}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+$('prev').onclick=()=>setLook(lookIdx-1);$('next').onclick=()=>setLook(lookIdx+1);
+$('shuffle').onclick=()=>{let j;do{j=(R()*LOOKS.length)|0}while(j===lookIdx);setLook(j);setMode('look');toast(`今日の一着：${LOOKS[j].jp}`)};
+
+/* ---------- hand tracking (MediaPipe) ---------- */
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL='https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const video=$('video'),lmc=$('lmc'),lctx=lmc.getContext('2d'),gestEl=$('gest'),camBtn=$('cam');
+let hl=null,stream=null,camOn=false,lastVT=-1,handEx=0,handExT=0,pinchPrev=null,twoD0=0,zoom0h=1,prevMx=null,prevT=0,vel=0,swipeCool=0;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),dist2=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+async function startCam(){
+  if(!window.isSecureContext){toast('カメラは https のページでのみ使えます');return}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('このブラウザはカメラに対応していません');return}
+  camBtn.disabled=true;camBtn.textContent='起動中…';
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    video.srcObject=stream;await video.play();$('camBox').hidden=false;gestEl.textContent='LOADING MODEL';
+    if(!hl){
+      const {FilesetResolver,HandLandmarker}=await import(MP+'/vision_bundle.mjs');
+      const fs=await FilesetResolver.forVisionTasks(MP+'/wasm');
+      const opts=d=>({baseOptions:{modelAssetPath:MODEL,delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.6,minTrackingConfidence:.5});
+      try{hl=await HandLandmarker.createFromOptions(fs,opts('GPU'))}catch(e){hl=await HandLandmarker.createFromOptions(fs,opts('CPU'))}
+    }
+    camOn=true;camBtn.setAttribute('aria-pressed','true');camBtn.textContent='✋ 停止';
+    const h=$('hint');h.innerHTML='<b>PINCH+MOVE</b><span>つまんで動かすと回転</span><b>OPEN</b><span>手をパッと開くと粒子が広がる</span><b>2 HANDS</b><span>両手の間隔でズーム</span><b>WAVE</b><span>手を素早く横に振って着替え</span>';
+    h.classList.remove('gone');hintGone=false;setTimeout(dismissHint,8000);
+  }catch(e){
+    stopCam();
+    toast(e&&e.name==='NotAllowedError'?'カメラが許可されませんでした。ブラウザの設定で許可してください':'カメラを起動できませんでした：'+(e&&e.message||e));
+  }finally{camBtn.disabled=false;if(!camOn)camBtn.textContent='✋ 手で操作'}
+}
+function stopCam(){camOn=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;
+  $('camBox').hidden=true;camBtn.setAttribute('aria-pressed','false');camBtn.textContent='✋ 手で操作';handExT=0;pinchPrev=null;twoD0=0}
+camBtn.onclick=()=>camOn?stopCam():startCam();
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&camOn)stopCam()});
+
+function drawHands(hands){
+  if(lmc.width!==video.videoWidth){lmc.width=video.videoWidth||640;lmc.height=video.videoHeight||480}
+  const w=lmc.width,h=lmc.height;lctx.clearRect(0,0,w,h);lctx.lineWidth=Math.max(2,w/160);
+  hands.forEach(lm=>{lctx.strokeStyle='#F26A21';lctx.beginPath();BONES.forEach(([a,b])=>{lctx.moveTo(lm[a].x*w,lm[a].y*h);lctx.lineTo(lm[b].x*w,lm[b].y*h)});lctx.stroke();
+    lctx.fillStyle='#F4EFE4';lm.forEach(p=>{lctx.beginPath();lctx.arc(p.x*w,p.y*h,lctx.lineWidth*1.3,0,TAU);lctx.fill()})});
+}
+function handStep(now){
+  if(!camOn||!hl||video.readyState<2||video.currentTime===lastVT)return;
+  lastVT=video.currentTime;let res;try{res=hl.detectForVideo(video,now)}catch(e){return}
+  const hands=res.landmarks||[];drawHands(hands);
+  if(!hands.length){handExT=0;pinchPrev=null;twoD0=0;prevMx=null;gestEl.textContent='NO HAND';return}
+  idle=0;
+  const openOf=lm=>{const palm=dist2(lm[0],lm[9])||1;return[8,12,16,20].reduce((a,t)=>a+dist2(lm[t],lm[0]),0)/4/palm};
+  if(hands.length>=2){
+    const d=dist2(hands[0][9],hands[1][9]);if(!twoD0){twoD0=d;zoom0h=zoom}
+    zoom=clamp(zoom0h*twoD0/d,.45,1.9);
+    handExT=clamp(((openOf(hands[0])+openOf(hands[1]))/2-1.6)/.35,0,1)*.6;
+    pinchPrev=null;prevMx=null;gestEl.textContent='2 HANDS · ZOOM';return;
+  }
+  twoD0=0;const lm=hands[0],palm=dist2(lm[0],lm[9])||1,pinch=dist2(lm[4],lm[8])/palm,open=openOf(lm);
+  if(pinch<.32){
+    const px=1-(lm[4].x+lm[8].x)/2,py=(lm[4].y+lm[8].y)/2;
+    if(pinchPrev){rotY+=(px-pinchPrev.x)*7;rotX=clamp(rotX+(py-pinchPrev.y)*2.2,-.5,.5);vY=(px-pinchPrev.x)*3}
+    pinchPrev={x:px,y:py};handExT=0;prevMx=null;gestEl.textContent='PINCH · ROTATE';return;
+  }
+  pinchPrev=null;
+  handExT=clamp((open-1.55)/.4,0,1);
+  const mx=1-lm[9].x;
+  if(prevMx!=null){const dt=Math.max(.016,(now-prevT)/1000);vel=vel*.4+((mx-prevMx)/dt)*.6;
+    if(Math.abs(vel)>1.7&&now>swipeCool){setLook(lookIdx+(vel<0?1:-1));swipeCool=now+1100;vel=0;toast(LOOKS[lookIdx].jp)}}
+  prevMx=mx;prevT=now;
+  gestEl.textContent=handExT>.6?'OPEN · SCATTER':'HAND · READY';
+}
+
+$('save').onclick=()=>{const id=LOOKS[lookIdx].id;saved.has(id)?saved.delete(id):saved.add(id);
+  try{localStorage.setItem('pfr-saved',JSON.stringify([...saved]))}catch(e){}
+  renderUI();toast(saved.has(id)?'お気に入りに保存しました':'保存を外しました')};
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),1600)}
+let hintGone=false;function dismissHint(){if(hintGone)return;hintGone=true;$('hint').classList.add('gone')}
+setTimeout(dismissHint,6000);
+
+/* swipe on title row */
+(()=>{const z=$('swipeZone');let sx=null,sy=0;
+  z.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;sx=e.clientX;sy=e.clientY});
+  z.addEventListener('pointerup',e=>{if(sx==null)return;const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;
+    if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.3){setLook(lookIdx+(dx<0?1:-1));dismissHint()}});
+  z.addEventListener('pointercancel',()=>sx=null);})();
+
+/* canvas gestures */
+const ptrs=new Map();let pinch0=0,zoom0=1,holdTimer=null,downAt=0,moved=0,lastTap=0;
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});dismissHint();idle=0;
+  if(ptrs.size===1){moved=0;downAt=performance.now();clearTimeout(holdTimer);holdTimer=setTimeout(()=>{if(moved<10)hold=1},420)}
+  if(ptrs.size===2){clearTimeout(holdTimer);hold=0;const[a,b]=[...ptrs.values()];pinch0=Math.hypot(a.x-b.x,a.y-b.y);zoom0=zoom}});
+canvas.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;idle=0;
+  if(ptrs.size===1){moved+=Math.abs(dx)+Math.abs(dy);if(moved>10)clearTimeout(holdTimer);if(!hold){vY=dx*.012;rotY+=dx*.012;rotX=Math.max(-.5,Math.min(.5,rotX+dy*.004))}}
+  else if(ptrs.size===2){const[a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch0>0)zoom=Math.max(.45,Math.min(1.9,zoom0*pinch0/d))}});
+function up(e){ptrs.delete(e.pointerId);clearTimeout(holdTimer);
+  if(ptrs.size===0){if(hold){hold=0;burst=Math.max(burst,.2)}
+    const now=performance.now();if(moved<10&&now-downAt<250){if(now-lastTap<320){burst=1.15;lastTap=0}else lastTap=now}}
+  if(ptrs.size===1){const[a]=[...ptrs.values()];}}
+canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.45,Math.min(1.9,zoom*(1+e.deltaY*.0012)))},{passive:false});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---------- framing ---------- */
+let W=1,H=1,visH=3,lookY=.5;
+function resize(){const r=canvas.getBoundingClientRect();W=r.width||1;H=r.height||1;renderer.setSize(W,H,false);camera.aspect=W/H;camera.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+function frame(){
+  const t=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),wide=W>=900;
+  const sheetH=wide?0:document.getElementById('sheet').offsetHeight;
+  const avail=Math.max(.35,(H-sheetH-56)/H); // fraction of screen free for the figure
+  const needH=(mode==='orbit'?1.75:2.0)/avail, needW=mode==='orbit'?1.55:1.0;
+  const dist=Math.max(needH/(2*t),needW/(2*t*camera.aspect))*zoom;
+  visH=2*t*dist;
+  // figure center sits in the middle of the free band (between header and sheet)
+  const freeMidFromTop=(56+(H-sheetH-56)/2)/H;
+  const center=mode==='orbit'?CEN[1]:.88;
+  const camY=center+(freeMidFromTop-.5)*visH;
+  camera.position.lerp(new THREE.Vector3(0,camY+.15,dist),.12);
+  lookY+= (camY-lookY)*.12;camera.lookAt(0,lookY,0);
+}
+
+/* ---------- loop ---------- */
+const vtmp=new THREE.Vector3(),clock=new THREE.Clock();
+function tick(){
+  const dt=Math.min(clock.getDelta(),.05);time+=dt;idle+=dt;handStep(performance.now());handEx+=(handExT-handEx)*.2;
+  if(!ptrs.size){rotY+=vY;vY*=.92;if(!reduce&&idle>2.5)rotY+=dt*(mode==='orbit'?.25:.35);rotX*=.97}
+  group.rotation.set(rotX,rotY,0);
+  burst*=Math.pow(.18,dt);const ex=Math.max(burst,hold?1.1:0,handEx*1.15);
+  ring.material.opacity=mode==='look'?.55:0;
+  const tp=target.pos,tc=target.col,tg=target.g,orbit=mode==='orbit';
+  const rs=RINGS.map(rg=>({...rg,a:time*rg.sp}));
+  for(let i=0;i<N;i++){
+    const i3=i*3;let x,y,z,cr,cg,cb,al;
+    if(!orbit){x=tp[i3];y=tp[i3+1];z=tp[i3+2];cr=tc[i3];cg=tc[i3+1];cb=tc[i3+2];
+      const g=tg[i];al=g<0?.55:1;if(sel>=0)al=g===sel?1:.1;
+      aSize[i]=baseSize[i]*(g<0?.8:1)*(sel>=0&&g===sel?1.5:1);}
+    else{const ty=oType[i];
+      if(ty===0){const a=time*.3,c=Math.cos(a),s=Math.sin(a),jx=oJ[i3],jz=oJ[i3+2];
+        const br=1+.06*Math.sin(time*2.2);x=CEN[0]+(jx*c-jz*s)*br;y=CEN[1]+oJ[i3+1]*br;z=CEN[2]+(jx*s+jz*c)*br}
+      else{const rg=rs[ty-1],a=oA[i]+rg.a;vtmp.set(Math.cos(a)*rg.r+oJ[i3],oJ[i3+1],Math.sin(a)*rg.r+oJ[i3+2]).applyMatrix4(rg.m);
+        x=CEN[0]+vtmp.x;y=CEN[1]+vtmp.y;z=CEN[2]+vtmp.z}
+      cr=oCol[i3];cg=oCol[i3+1];cb=oCol[i3+2];al=ty===0?.9:.8;aSize[i]=baseSize[i]*(ty===0?1.1:.85);}
+    if(ex>.002){const m=ex*1.35;x+=dir[i3]*m;y+=dir[i3+1]*m;z+=dir[i3+2]*m}
+    if(!reduce){const w=.004;x+=Math.sin(time*1.7+i)*w;y+=Math.cos(time*1.3+i*.7)*w}
+    const k=kSp[i]*(hold?.6:1);
+    cur[i3]+=(x-cur[i3])*k;cur[i3+1]+=(y-cur[i3+1])*k;cur[i3+2]+=(z-cur[i3+2])*k;
+    curC[i3]+=(cr-curC[i3])*.08;curC[i3+1]+=(cg-curC[i3+1])*.08;curC[i3+2]+=(cb-curC[i3+2])*.08;
+    aAlpha[i]+=(al-aAlpha[i])*.1;
+  }
+  geo.attributes.position.needsUpdate=geo.attributes.aColor.needsUpdate=geo.attributes.aSize.needsUpdate=geo.attributes.aAlpha.needsUpdate=true;
+  frame();
+  renderer.render(scene,camera);
+  if(orbit){
+    group.updateMatrixWorld();const lr=rs[0];
+    labelEls.forEach((el,j)=>{const a=j/LOOKS.length*TAU+lr.a;vtmp.set(Math.cos(a)*(lr.r+.06),0,Math.sin(a)*(lr.r+.06)).applyMatrix4(lr.m);
+      vtmp.x+=CEN[0];vtmp.y+=CEN[1];vtmp.z+=CEN[2];vtmp.applyMatrix4(group.matrixWorld);
+      const camSpace=vtmp.clone().applyMatrix4(camera.matrixWorldInverse);vtmp.project(camera);
+      const sx=(vtmp.x*.5+.5)*W,sy=(-vtmp.y*.5+.5)*H,depth=-camSpace.z,front=Math.max(0,Math.min(1,(camera.position.length()-depth+.6)/1.2));
+      el.style.transform=`translate(-50%,-50%) translate(${sx}px,${sy}px) scale(${.82+front*.25})`;
+      el.style.opacity=(.3+front*.7).toFixed(2);el.style.zIndex=Math.round(front*10);el.style.left='0';el.style.top='0';
+      el.style.translate='';el.tabIndex=0;});
+  }
+  requestAnimationFrame(tick);
+}
+labelsEl.style.display='none';
+renderUI();requestAnimationFrame(tick);
+window.__pfr={setLook,setMode,hold:v=>hold=v};
+})();
+</script>
+</body>
+</html>
